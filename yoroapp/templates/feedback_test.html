@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>관광지 추천 테스트</title></head>
+<body>
+  <h1>추천 테스트</h1>
+  <input id="region" value="충주시">
+  <button onclick="getRecommend()">추천</button>
+  <ul id="list"></ul>
+
+  <script>
+    async function getRecommend() {
+      const region = document.getElementById('region').value;
+      const res = await fetch(`/test/recommend/?region=${encodeURIComponent(region)}`);
+      const data = await res.json();
+      const ul = document.getElementById('list');
+      ul.innerHTML = '';
+      data.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.제목 + ' — ' + item.캐치프레이즈;
+        const btn = document.createElement('button');
+        btn.textContent = '👎 싫어요';
+        btn.onclick = () => sendFeedback(item.제목);
+        li.appendChild(btn);
+        ul.appendChild(li);
+      });
+    }
+
+    async function sendFeedback(title) {
+      await fetch('/test/feedback/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ rejected_titles: [title] })
+      });
+      alert(title + ' 를 싫어요로 보냈습니다.');
+      getRecommend();
+    }
+  </script>
+</body>
+</html>
