@@ -1,45 +1,40 @@
-from .utils import ModelLoader
 import numpy as np
 import pandas as pd
 import os
-from sklearn.metrics.pairwise import cosine_similarity
+from .utils import ModelLoader
 
 # 모델 로딩
 models = ModelLoader.load()
 tfidf_w = models['tfidf_vectorizer_w']
-# tfidf_c, ohe, scaler, kmeans도 필요시 활용 가능
 
 # CSV 로드
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 csv_path = os.path.join(THIS_DIR, 'model', 'tourist_spots.csv')
 df = pd.read_csv(csv_path, encoding='utf-8')
 
-'''
-# TF-IDF 벡터 계산 (word-level만)
-W = tfidf_w.transform(df['캐치프레이즈']).toarray()
+# NumPy 기반 cosine similarity 함수
+def cosine_sim_matrix(X, Y):
+    # X: (n_samples, n_features), Y: (m_samples, n_features)
+    # 반환: (n_samples, m_samples)
+    X_norm = np.linalg.norm(X, axis=1, keepdims=True)  # (n,1)
+    Y_norm = np.linalg.norm(Y, axis=1, keepdims=True)  # (m,1)
+    sim = X @ Y.T / (X_norm * Y_norm.T + 1e-9)
+    return sim
 
-# 프로토타입 유사도 점수
-prototypes = ["자연", "힐링", "산책", "휴식", "편안", "경사", "벤치", "전망", "체험", "조용"]
-proto_tfs = tfidf_w.transform(prototypes).toarray()
-proto_center = proto_tfs.mean(axis=0).reshape(1, -1)
-senior_scores = cosine_similarity(W, proto_center).flatten()
-senior_scores = (senior_scores + 1) / 2  # 정규화
-'''
-
-# 추천 함수
 def recommend(region, rejected=None, k=3):
     if rejected is None:
         rejected = set()
 
-    # ① 요청 시점에만 TF-IDF 벡터 계산
+    # ① TF-IDF 벡터 계산
     W = tfidf_w.transform(df['캐치프레이즈']).toarray()
 
-    # ② 프로토타입 유사도 계산
+    # ② 프로토타입 유사도 계산 (NumPy 전용)
     prototypes = ["자연","힐링","산책","휴식","편안","경사","벤치","전망","체험","조용"]
-    proto_tfs     = tfidf_w.transform(prototypes).toarray()
-    proto_center  = proto_tfs.mean(axis=0).reshape(1, -1)
-    senior_scores = cosine_similarity(W, proto_center).flatten()
-    senior_scores = (senior_scores + 1) / 2
+    proto_tfs    = tfidf_w.transform(prototypes).toarray()
+    proto_center = proto_tfs.mean(axis=0).reshape(1, -1)  # (1, n_features)
+    # cosine_sim_matrix에선 Y가 (1, n_features)이므로 반환 shape은 (n_samples,1)
+    senior_scores = cosine_sim_matrix(W, proto_center).flatten()
+    senior_scores = (senior_scores + 1) / 2  # [0,1] 정규화
 
     # ③ 지역 필터링
     df_r = df[df['지역 (시_군_구)'] == region]
